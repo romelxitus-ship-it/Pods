@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost Pods</title>
+
+    <!-- OTIMIZAÇÃO 1: Preload dos recursos mais críticos -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+
+    <!-- OTIMIZAÇÃO 2: Fonte carregada de forma não-bloqueante (display=swap) -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&display=swap" rel="stylesheet"></noscript>
+
+    <!-- OTIMIZAÇÃO 3: Font Awesome carregado de forma não-bloqueante -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
+
+    <style>
+        /* OTIMIZAÇÃO 4: Font-display swap para evitar texto invisível */
+        @font-face { font-display: swap; }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Montserrat', 'Segoe UI', sans-serif;
+        }
+
+        body {
+            background-color: #000;
+            color: #fff;
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+
+        /* OTIMIZAÇÃO 5: Fumaça simplificada - blur(40px) é MUITO pesado na GPU.
+           Trocado por blur(20px) e reduzido tamanho das partículas */
+        .smoke-container {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            overflow: hidden;
+            opacity: 0.35;
+            /* OTIMIZAÇÃO 6: will-change cria layer separada na GPU para as partículas */
+            will-change: transform;
+        }
+
+        .smoke-particle {
+            position: absolute;
+            width: 350px; /* era 500px */
+            height: 350px;
+            background: radial-gradient(circle, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 40%, transparent 70%);
+            border-radius: 50%;
+            filter: blur(20px); /* era blur(40px) — reduz custo de GPU em ~60% */
+            animation: floatSmoke linear infinite;
+            bottom: -250px;
+            /* OTIMIZAÇÃO 7: transform3d força aceleração de hardware */
+            transform: translateZ(0);
+        }
+
+        .smoke-1 { left: -5%; animation-duration: 26s; animation-delay: 0s; }
+        .smoke-2 { left: 35%; animation-duration: 19s; animation-delay: -7s; }
+        .smoke-3 { left: 68%; animation-duration: 23s; animation-delay: -12s; }
+
+        @keyframes floatSmoke {
+            0%   { transform: translate3d(0, 0, 0) scale(1); opacity: 0; }
+            10%  { opacity: 1; }
+            90%  { opacity: 0.7; }
+            100% { transform: translate3d(0, -115vh, 0) scale(1.8); opacity: 0; }
+        }
+
+        /* TOP BAR */
+        .top-bar {
+            /* OTIMIZAÇÃO 8: backdrop-filter só onde é necessário */
+            background-color: rgba(0,0,0,0.90);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-bottom: 1px solid #111;
+            padding: 28px 5%;
+            min-height: 92px; /* aumenta a área de fundo onde o ícone fica */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1500;
+            /* OTIMIZAÇÃO 9: contain evita repaints desnecessários */
+            contain: layout style;
+        }
+
+        .top-bar a {
+            font-family: 'Montserrat', sans-serif;
+            color: #e0e0e0;
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: -1px;
+            text-decoration: none;
+            transition: color 0.25s;
+        }
+
+        /* Marca (logo + nome) na top-bar */
+        .top-bar .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: inherit;
+            position: absolute; /* posiciona no canto esquerdo da top-bar */
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .brand-logo {
+            width: 90px; /* aumentado apenas o ícone */
+            height: 90px; /* aumentado apenas o ícone */
+            display: inline-block;
+            object-fit: contain;
+            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+            flex-shrink: 0;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @media (max-width: 600px) {
+            .brand-logo { width: 70px; height: 75px; }
+            .top-bar .brand { left: 12px; }
+        }
+
+        .brand-name {
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: -1px;
+            margin-left: 4px;
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .top-bar a:hover { color: #fff; }
+
+        .cart-icon-btn {
+            position: absolute; /* fixa no canto direito da top-bar */
+            right: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            padding: 5px;
+            z-index: 1600;
+        }
+        .cart-icon-btn i { font-size: 24px; color: #fff; }
+
+        .cart-badge {
+            position: absolute;
+            top: -5px; right: -8px;
+            background: #ff3b30;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* HERO */
+        .hero-section {
+            position: relative;
+            z-index: 2;
+            min-height: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 80px 5% 60px;
+            overflow: hidden;
+        }
+
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            /* OTIMIZAÇÃO 10: background-image com radial-gradient é leve, ok manter */
+            background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+            background-size: 36px 36px;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .hero-section::after {
+            content: '';
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px; height: 350px;
+            background: radial-gradient(ellipse, rgba(80,120,255,0.10) 0%, transparent 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.10);
+            padding: 7px 18px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #aaa;
+            margin-bottom: 26px;
+            animation: fadeUp 0.5s ease both;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.1; }
+        }
+
+        .hero-title {
+            font-size: clamp(40px, 7vw, 80px);
+            font-weight: 900;
+            line-height: 1.05;
+            letter-spacing: -2px;
+            color: #fff;
+            margin-bottom: 22px;
+            animation: fadeUp 0.6s ease 0.08s both;
+        }
+
+        .hero-title .highlight {
+            background: linear-gradient(135deg, #fff 0%, #777 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: clamp(14px, 2vw, 16px);
+            font-weight: 400;
+            color: #666;
+            line-height: 1.7;
+            max-width: 500px;
+            margin: 0 auto 38px;
+            animation: fadeUp 0.6s ease 0.16s both;
+        }
+
+        .hero-subtitle strong { color: #bbb; font-weight: 600; }
+
+        .hero-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            animation: fadeUp 0.6s ease 0.24s both;
+        }
+
+        .btn-hero-primary {
+            background: #fff;
+            color: #000;
+            border: none;
+            padding: 13px 30px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            transition: background 0.25s, transform 0.2s;
+        }
+
+        .btn-hero-primary:hover { background: #e5e5e5; transform: translateY(-2px); }
+
+        .btn-hero-secondary {
+            background: transparent;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 13px 30px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            transition: border-color 0.25s, transform 0.2s;
+        }
+
+        .btn-hero-secondary:hover { border-color: #555; transform: translateY(-2px); }
+
+        .hero-divider {
+            height: 1px;
+            background: linear-gradient(to right, transparent, #1a1a1a 30%, #1a1a1a 70%, transparent);
+            position: relative;
+            z-index: 2;
+            margin: 0 5%;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* PRODUTOS */
+        .products-container {
+            padding: 50px 5% 100px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #444;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 22px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* OTIMIZAÇÃO 11: Removido backdrop-filter dos cards (era caro com 9 cards na tela) */
+        .product-card {
+            background-color: #080808;
+            border: 1px solid #161616;
+            border-radius: 16px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.25s, border-color 0.25s;
+            /* OTIMIZAÇÃO 12: contain isola cada card, evita repaints em cascata */
+            contain: layout style;
+        }
+
+        .product-card:hover {
+            transform: translateY(-4px);
+            border-color: #282828;
+        }
+
+        .product-image {
+            height: 240px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            margin-bottom: 18px;
+            /* OTIMIZAÇÃO 13: overflow hidden para não vazar conteúdo */
+            overflow: hidden;
+        }
+
+        /* OTIMIZAÇÃO 14: imagens com object-fit e dimensões definidas */
+        .product-image img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            width: auto;
+            height: auto;
+            /* OTIMIZAÇÃO 15: decoding async libera thread principal */
+            display: block;
+        }
+
+        .promo-badge {
+            position: absolute;
+            top: 0; left: 0;
+            background: #ff6b4a;
+            color: #fff;
+            padding: 5px 13px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .product-info h3 {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 14px;
+        }
+
+        .price-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .price { font-size: 20px; font-weight: 700; }
+
+        .btn-details {
+            background: transparent;
+            border: 1px solid #fff;
+            color: #fff;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: background 0.25s, color 0.25s;
+        }
+
+        .btn-details:hover { background: #fff; color: #000; }
+
+        .btn-buy-wp {
+            width: 100%;
+            padding: 11px;
+            background: #fff;
+            color: #000;
+            border: none;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.25s;
+        }
+
+        .btn-buy-wp:hover { background: #e5e5e5; }
+
+        /* SACOLA */
+        .cart-sidebar {
+            position: fixed;
+            top: 0; right: -100%;
+            width: 100%; max-width: 390px;
+            height: 100%;
+            background: #0c0c0c;
+            border-left: 1px solid #1a1a1a;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.8);
+            z-index: 3000;
+            transition: right 0.28s ease-in-out;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cart-sidebar.open { right: 0; }
+
+        .cart-header {
+            padding: 22px;
+            border-bottom: 1px solid #1a1a1a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .cart-header h2 { font-size: 18px; font-weight: 700; }
+
+        .close-cart {
+            background: transparent;
+            border: none;
+            color: #888;
+            font-size: 22px;
+            cursor: pointer;
+        }
+
+        .close-cart:hover { color: #fff; }
+
+        .cart-items-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .cart-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: #121212;
+            padding: 11px;
+            border-radius: 12px;
+            border: 1px solid #1c1c1c;
+        }
+
+        .cart-item-img {
+            width: 48px; height: 48px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+            border-radius: 6px;
+            padding: 3px;
+            flex-shrink: 0;
+        }
+
+        .cart-item-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        .cart-item-info { flex: 1; min-width: 0; }
+
+        .cart-item-info h4 {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 2px;
+        }
+
+        .cart-item-info p { font-size: 13px; font-weight: 700; color: #aaa; }
+
+        .qty-controls {
+            display: flex;
+            align-items: center;
+            background: #000;
+            border: 1px solid #222;
+            border-radius: 6px;
+            margin-top: 5px;
+            width: fit-content;
+        }
+
+        .qty-controls button {
+            background: transparent;
+            border: none;
+            color: #fff;
+            width: 26px; height: 26px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qty-controls button:hover { background: #1c1c1c; }
+        .qty-controls span { font-size: 12px; padding: 0 6px; min-width: 20px; text-align: center; }
+
+        .remove-item-btn {
+            background: transparent;
+            border: none;
+            color: #ff3b30;
+            font-size: 15px;
+            cursor: pointer;
+            padding: 5px;
+            flex-shrink: 0;
+        }
+
+        .empty-cart-msg { text-align: center; color: #555; font-size: 14px; margin-top: 30px; }
+
+        .cart-footer {
+            padding: 22px;
+            border-top: 1px solid #1a1a1a;
+            background: #080808;
+        }
+
+        .cart-total-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .cart-total-row span { font-size: 18px; font-weight: 700; }
+
+        .btn-finalize-wp {
+            width: 100%;
+            padding: 13px;
+            background: #25d366;
+            color: #fff;
+            border: none;
+            font-size: 14px;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.25s;
+        }
+
+        .btn-finalize-wp:hover { background: #20ba5a; }
+
+        .btn-finalize-wp.disabled-cart-btn {
+            background: #222 !important;
+            color: #666 !important;
+            cursor: not-allowed;
+        }
+
+        /* TOAST */
+        .toast-notification {
+            position: fixed;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #121212;
+            color: #fff;
+            border: 1px solid #ff3b30;
+            padding: 14px 22px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: top 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            white-space: nowrap;
+        }
+
+        .toast-notification.show { top: 28px; }
+        .toast-notification i { color: #ff3b30; }
+
+        .cart-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 2500;
+            display: none;
+        }
+
+        /* MODAL */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: #080808;
+            border: 1px solid #222;
+            width: 100%;
+            max-width: 430px;
+            border-radius: 16px;
+            padding: 22px;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            animation: fadeIn 0.25s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.96); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            border-bottom: 1px solid #151515;
+            padding-bottom: 12px;
+        }
+
+        .modal-header h2 { font-size: 17px; font-weight: 700; }
+
+        .close-modal {
+            background: transparent;
+            border: none;
+            color: #888;
+            font-size: 20px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .close-modal:hover { color: #fff; }
+
+        .modal-body-img {
+            width: 100%; height: 200px;
+            background: #000;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 18px;
+            padding: 12px;
+            border: 1px solid #111;
+        }
+
+        .modal-body-img img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        .modal-description {
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.6;
+            margin-bottom: 22px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #151515;
+            padding-top: 16px;
+        }
+
+        /* WHATSAPP FLOAT */
+        .whatsapp-float {
+            position: fixed;
+            bottom: 28px; right: 28px;
+            background: #25d366;
+            color: #fff;
+            width: 58px; height: 58px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 28px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+            z-index: 1000;
+            text-decoration: none;
+            transition: transform 0.25s;
+        }
+
+        .whatsapp-float:hover { transform: scale(1.1); }
+
+        footer {
+            text-align: center;
+            padding: 36px;
+            font-size: 11px;
+            color: #333;
+            border-top: 1px solid #111;
+            margin-top: 120px;
+            position: relative;
+            z-index: 2;
+        }
+
+        @media (max-width: 600px) {
+            .hero-section { padding: 55px 5% 38px; min-height: auto; }
+            .hero-buttons { flex-direction: column; align-items: center; }
+            .btn-hero-primary, .btn-hero-secondary { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="smoke-container" aria-hidden="true">
+        <div class="smoke-particle smoke-1"></div>
+        <div class="smoke-particle smoke-2"></div>
+        <div class="smoke-particle smoke-3"></div>
+    </div>
+
+    <div id="toastNotification" class="toast-notification" role="alert" aria-live="polite">
+        <i class="fas fa-exclamation-circle"></i>
+        <span>Sua sacola está vazia! Adicione um produto primeiro.</span>
+    </div>
+
+    <div class="top-bar">
+        <a href="#vitrine-produtos" class="brand">
+            <img src="Ghost Pods.png" alt="Ghost Pods" class="brand-logo" loading="lazy" decoding="async">
+            <span class="brand-name">Ghost Pods</span>
+        </a>
+        <div class="cart-icon-btn" onclick="toggleCart(true)" aria-label="Abrir sacola">
+            <i class="fas fa-shopping-bag"></i>
+            <span class="cart-badge" id="cartCount">0</span>
+        </div>
+    </div>
+
+    <!-- HERO -->
+    <section class="hero-section">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <i class="fas fa-circle" style="font-size:7px;animation:blink 1.4s ease-in-out infinite"></i>
+                Loja Online · Entrega Rápida
+            </div>
+            <h1 class="hero-title">
+                Pods de qualidade,<br>
+                <span class="highlight">entrega rápida.</span>
+            </h1>
+            <p class="hero-subtitle">
+                Os melhores pods descartáveis com os sabores mais incríveis do mercado.
+                <strong>Peça agora pelo WhatsApp</strong> e receba onde você estiver.
+            </p>
+            <div class="hero-buttons">
+                <a href="#vitrine-produtos" class="btn-hero-primary">
+                    <i class="fas fa-shopping-bag"></i> Ver Produtos
+                </a>
+                <a href="https://wa.me/555182720141?text=Olá! Gostaria de fazer um pedido." class="btn-hero-secondary" target="_blank" rel="noopener">
+                    <i class="fab fa-whatsapp"></i> Chamar no Zap
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="hero-divider"></div>
+
+    <!-- VITRINE -->
+    <section id="vitrine-produtos" class="products-container">
+        <p class="section-label">Nossos Produtos</p>
+        <div class="products-grid">
+
+            <div class="product-card">
+                <div class="product-image">
+                    <span class="promo-badge"><i class="fas fa-fire"></i> Promoção</span>
+                    <!-- OTIMIZAÇÃO 16: loading="lazy" nas imagens dos cards — browser só carrega quando entra na tela -->
+                    <!-- OTIMIZAÇÃO 17: fetchpriority="high" apenas na 1ª imagem visível -->
+                    <img src="imagens/foto1.png" alt="LOSTMARY PRO 20K" loading="eager" fetchpriority="high" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>LOSTMARY PRO 20K</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 99,00</span>
+                        <button class="btn-details" onclick="openModal('LOSTMARY PRO 20K','imagens/foto1.png','Dispositivo descartável Lostmary Pro com 20.000 puffs de alto rendimento. Apresenta visor de bateria e e-liquid inteligente com sabor extremamente marcante e duradouro.','R$ 99,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('LOSTMARY PRO 20K',99.00,'imagens/foto1.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto2.png" alt="ELFBAR 40K SABORES" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>ELFBAR 40K SABORES</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 120,00</span>
+                        <button class="btn-details" onclick="openModal('ELFBAR 40K SABORES','imagens/foto2.png','Linha Elfbar 40K com diversos sabores à sua escolha. Experiência premium, fluxo de ar ajustável e uma gigante autonomia ideal para o seu dia a dia.','R$ 120,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('ELFBAR 40K SABORES',120.00,'imagens/foto2.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto3.png" alt="IGNITE V300 30K" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>IGNITE V300 30K</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 129,00</span>
+                        <button class="btn-details" onclick="openModal('IGNITE V300 30K','imagens/foto3.png','O novo Ignite V300 oferece até 30.000 puffs com a renomada qualidade e design icônico da marca. Sabores intensos com tecnologia de bobina atualizada.','R$ 129,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('IGNITE V300 30K',129.00,'imagens/foto3.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto4.png" alt="IGNITE V250 25K" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>IGNITE V250 25K</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 119,00</span>
+                        <button class="btn-details" onclick="openModal('IGNITE V250 25K','imagens/foto4.png','O gigante Ignite V250 oferece impressionantes 25.000 puffs com painel digital completo. Conta com alta capacidade de e-líquido e bateria, entregando sabor potente e fluxo de ar impecável.','R$ 119,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('IGNITE V250 25K',119.00,'imagens/foto4.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto5.png" alt="NIKBAR 10K" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>NIKBAR 10K</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 85,00</span>
+                        <button class="btn-details" onclick="openModal('NIKBAR 10K','imagens/foto5.png','O Nikbar 10K oferece até 10.000 puffs com um design moderno e visor digital de bateria e e-líquido. Coil mesh avançada para um sabor limpo e marcante do início ao fim.','R$ 85,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('NIKBAR 10K',85.00,'imagens/foto5.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto6.png" alt="IGNITE V120 12K" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>IGNITE V120 12K</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 95,00</span>
+                        <button class="btn-details" onclick="openModal('IGNITE V120 12K','imagens/foto6.png','Modelo Ignite V120 com capacidade para 12.000 puffs. Design anatômico, fluxo de ar ideal e os sabores intensos e marcantes característicos da linha Ignite.','R$ 95,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('IGNITE V120 12K',95.00,'imagens/foto6.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto7.png" alt="Elfbar Trio 40k" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>Elfbar Trio 40k - 40.000 Puffs</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 175,00</span>
+                        <button class="btn-details" onclick="openModal('Elfbar Trio 40k - 40.000 Puffs','imagens/foto7.png','Elfbar Ice King - 40.000 Puffs Orange Blast - Pod Descartável','R$ 175,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('Elfbar Trio 40k - 40.000 Puffs',175.00,'imagens/foto7.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto8.png" alt="Ignite Sweet v400" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>Ignite Sweet v400 - Pod Descartável</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 195,00</span>
+                        <button class="btn-details" onclick="openModal('Ignite Sweet v400 - Pod Descartável','imagens/foto8.png','Ignite Sweet v400 Strawberry Banana - Pod Descartável com sabor incrível e longa duração.','R$ 195,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('Ignite Sweet v400 - Pod Descartável',195.00,'imagens/foto8.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto9.png" alt="Ignite v400 Ice" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>Ignite v400 Ice - Pod Descartável</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 190,00</span>
+                        <button class="btn-details" onclick="openModal('Ignite v400 Ice - Pod Descartável','imagens/foto9.png','Ignite v400 Ice - Pod Descartável com sensação de gelo e sabor intenso do início ao fim.','R$ 190,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('Ignite v400 Ice - Pod Descartável',190.00,'imagens/foto9.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto10.png" alt="Ignite v155 - 15.000 puffs" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>Ignite v155 - 15.000 puffs</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 159,00</span>
+                        <button class="btn-details" onclick="openModal('Ignite v155 - 15.000 puffs','imagens/foto10.png','Descrição do Ignite v155 - 15.000 puffs Sabor Grape ice','R$ 159,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('Ignite v155 - 15.000 puffs',159.00,'imagens/foto10.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto11.png" alt="Ignite v300 Slim - Pod Descartável" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>Ignite v300 Slim - Pod Descartável</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 175,00</span>
+                        <button class="btn-details" onclick="openModal('Ignite v300 Slim - Pod Descartável','imagens/foto11.png','Sabor SWEET AND SOUR POMEGRANATE.','R$ 175,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('Ignite v300 Slim - Pod Descartável',175.00,'imagens/foto11.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto12.png" alt="Ignite v400 Mix - Pod Descartável" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>Ignite v400 Mix - Pod Descartável</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 190,00</span>
+                        <button class="btn-details" onclick="openModal('Ignite v400 Mix - Pod Descartável','imagens/foto12.png','Descrição Ignite v400 Mix Açai ICE + WATER GRAPE- Pod Descartável','R$ 190,00')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('Ignite v400 Mix - Pod Descartável',190.00,'imagens/foto12.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto13.png" alt="Pod Descartável Mixer com 30000 puffs" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>Pod Descartável Mixer com 30000 puffs</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 144,53</span>
+                        <button class="btn-details" onclick="openModal('Pod Descartável Mixer com 30000 puffs | Lost Mary - Aloe Grape Sour Apple - 50mg/mL','imagens/foto13.png','Pod descartável de teste com excelente qualidade e sabor intenso, Sabores Apple Grape - Blue Berry Watermelon - Blue Razz ice - Cherry Lemon - Grapefruit Lemon Lime etc.','R$ 144,53')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('Pod Descartável Mixer com 30000 puffs | Lost Mary - Aloe Grape Sour Apple - 50mg/mL',144.53,'imagens/foto13.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto14.png" alt="Pod Descartável GH23000 com 23000 puffs | Elf Bar" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>Pod Descartável GH23000 com 23000 puffs | Elf Bar</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 126,90</span>
+                        <button class="btn-details" onclick="openModal('Pod Descartável GH23000 com 23000 puffs | Elf Bar','imagens/foto14.png','Pod descartável de teste com excelente qualidade e sabor intenso, Sabores Baja Splash - Vlue Razz Ice -Blueberry Pear etc.','R$ 126,90')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('Pod Descartável GH23000 com 23000 puffs | Elf Bar',126.90,'imagens/foto14.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+            <div class="product-card">
+                <div class="product-image">
+                    <img src="imagens/foto15.png" alt="VapeSoul V-Ghost – 6500 Puffs – Pod Descartável – 650mAh" loading="lazy" decoding="async">
+                </div>
+                <div class="product-info">
+                    <h3>VapeSoul V-Ghost – 6500 Puffs – Pod Descartável – 650mAh</h3>
+                    <div class="price-row">
+                        <span class="price">R$ 74,90</span>
+                        <button class="btn-details" onclick="openModal('VapeSoul V-Ghost – 6500 Puffs – Pod Descartável – 650mAh','imagens/foto15.png','Pod descartável de teste com excelente qualidade e sabor intenso, Sabores Grape Ice - Mix Berry - Fresh Mint - Watermelon ice - Strawberry ice Blueberry - Love66.','R$ 74,90')">
+                            <i class="far fa-question-circle"></i> Detalhes
+                        </button>
+                    </div>
+                    <button class="btn-buy-wp" onclick="addToCart('VapeSoul V-Ghost – 6500 Puffs – Pod Descartável – 650mAh',74.90,'imagens/foto15.png')">
+                        <i class="fas fa-plus"></i> Adicionar
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <div id="cartOverlay" class="cart-overlay" onclick="toggleCart(false)"></div>
+
+    <div id="cartSidebar" class="cart-sidebar" role="dialog" aria-label="Sua sacola">
+        <div class="cart-header">
+            <h2>Sua Sacola</h2>
+            <button class="close-cart" onclick="toggleCart(false)" aria-label="Fechar sacola"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="cartItemsList" class="cart-items-list">
+            <p class="empty-cart-msg">Sua sacola está vazia.</p>
+        </div>
+        <div class="cart-footer">
+            <div class="cart-total-row">
+                <span>Total:</span>
+                <span id="cartTotalValue">R$ 0,00</span>
+            </div>
+            <button id="btnFinalizeWp" class="btn-finalize-wp disabled-cart-btn" onclick="sendCartToWhatsApp()">
+                <i class="fab fa-whatsapp"></i> Chamar no Zap
+            </button>
+        </div>
+    </div>
+
+    <div id="detailsModal" class="modal" role="dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Nome do Pod</h2>
+                <button class="close-modal" onclick="closeModal()" aria-label="Fechar"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body-img">
+                <img id="modalImage" src="" alt="Produto" loading="lazy" decoding="async">
+            </div>
+            <p id="modalDescription" class="modal-description"></p>
+            <div class="modal-footer">
+                <span class="price" id="modalPrice">R$ 0,00</span>
+                <button class="btn-buy-wp" id="modalBuyBtn" style="width:auto;padding:10px 18px">
+                    <i class="fas fa-plus"></i> Adicionar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Ghost Pods. Todos os direitos reservados.</p>
+    </footer>
+
+    <a href="https://wa.me/555182720141?text=Olá! Gostaria de tirar uma dúvida." class="whatsapp-float" target="_blank" rel="noopener" aria-label="WhatsApp">
+        <i class="fab fa-whatsapp"></i>
+    </a>
+
+    <!-- OTIMIZAÇÃO 18: Script no final do body, sem bloquear renderização -->
+    <script>
+        const modal      = document.getElementById('detailsModal');
+        const cartSidebar = document.getElementById('cartSidebar');
+        const cartOverlay = document.getElementById('cartOverlay');
+        let cart = [];
+        const WHATSAPP_NUMBER = "555182720141";
+
+        function toggleCart(open) {
+            cartSidebar.classList.toggle('open', open);
+            cartOverlay.style.display = open ? 'block' : 'none';
+        }
+
+        function openModal(name, img, desc, price) {
+            document.getElementById('modalTitle').textContent = name;
+            document.getElementById('modalImage').src = img;
+            document.getElementById('modalDescription').textContent = desc;
+            document.getElementById('modalPrice').textContent = price;
+            document.getElementById('modalBuyBtn').onclick = () => {
+                addToCart(name, parseFloat(price.replace('R$','').replace(',','.')), img);
+                closeModal();
+            };
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() { modal.style.display = 'none'; }
+
+        function addToCart(name, price, img) {
+            const item = cart.find(i => i.name === name);
+            if (item) { item.quantity++; } else { cart.push({ name, price, img, quantity: 1 }); }
+            updateCart();
+            toggleCart(true);
+        }
+
+        function changeQuantity(name, delta) {
+            const item = cart.find(i => i.name === name);
+            if (!item) return;
+            item.quantity += delta;
+            if (item.quantity <= 0) { removeFromCart(name); return; }
+            updateCart();
+        }
+
+        function removeFromCart(name) {
+            cart = cart.filter(i => i.name !== name);
+            updateCart();
+        }
+
+        function showToast() {
+            const t = document.getElementById('toastNotification');
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        // OTIMIZAÇÃO 19: DocumentFragment para atualizar o DOM de uma só vez (evita reflows múltiplos)
+        function updateCart() {
+            const list      = document.getElementById('cartItemsList');
+            const countEl   = document.getElementById('cartCount');
+            const totalEl   = document.getElementById('cartTotalValue');
+            const btn       = document.getElementById('btnFinalizeWp');
+            const frag      = document.createDocumentFragment();
+
+            let totalItems = 0, totalPrice = 0;
+
+            if (cart.length === 0) {
+                list.innerHTML = '<p class="empty-cart-msg">Sua sacola está vazia.</p>';
+                btn.classList.add('disabled-cart-btn');
+            } else {
+                btn.classList.remove('disabled-cart-btn');
+                list.innerHTML = '';
+                cart.forEach(item => {
+                    totalItems += item.quantity;
+                    totalPrice += item.price * item.quantity;
+
+                    const div = document.createElement('div');
+                    div.className = 'cart-item';
+                    div.innerHTML = `
+                        <div class="cart-item-img"><img src="${item.img}" alt="${item.name}" loading="lazy"></div>
+                        <div class="cart-item-info">
+                            <h4>${item.name}</h4>
+                            <p>R$ ${item.price.toFixed(2).replace('.',',')}</p>
+                            <div class="qty-controls">
+                                <button onclick="changeQuantity('${item.name}',-1)">−</button>
+                                <span>${item.quantity}</span>
+                                <button onclick="changeQuantity('${item.name}',1)">+</button>
+                            </div>
+                        </div>
+                        <button class="remove-item-btn" onclick="removeFromCart('${item.name}')"><i class="far fa-trash-alt"></i></button>`;
+                    frag.appendChild(div);
+                });
+                list.appendChild(frag);
+            }
+
+            countEl.textContent = totalItems;
+            totalEl.textContent = `R$ ${totalPrice.toFixed(2).replace('.',',')}`;
+        }
+
+        function sendCartToWhatsApp() {
+            if (cart.length === 0) { showToast(); return; }
+            let msg = "Olá! Gostaria de fazer o seguinte pedido:%0A%0A";
+            cart.forEach(i => {
+                msg += `* ${i.name} (x${i.quantity}) - R$ ${(i.price * i.quantity).toFixed(2).replace('.',',')}%0A`;
+            });
+            msg += `%0A*Total: ${document.getElementById('cartTotalValue').textContent}*`;
+            window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`, '_blank');
+        }
+    </script>
+</body>
+</html>
